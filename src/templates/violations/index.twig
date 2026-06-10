@@ -1,0 +1,274 @@
+{% extends 'watson/_layout' %}
+
+{% set title = 'CSP Violations'|t('watson') %}
+{% set fullPageForm = false %}
+
+{% set selectedSubnavItem = 'violations' %}
+
+{% set statusOptions = [
+    { value: '',         label: 'All'|t('watson') },
+    { value: 'new',      label: 'New'|t('watson') },
+    { value: 'resolved', label: 'Resolved'|t('watson') },
+    { value: 'ignored',  label: 'Ignored'|t('watson') },
+] %}
+
+{% block actionButton %}
+    <form method="post" action="">
+        {{ csrfInput() }}
+        {{ actionInput('watson/cp/purge') }}
+        {{ redirectInput('watson/violations?' ~ craft.app.request.queryStringWithoutPath) }}
+        <input type="hidden" name="days" value="{{ settings.retentionDays }}">
+        <button type="submit" class="btn" onclick="return confirm('{{ 'Purge violations older than {n} days?'|t('watson', {n: settings.retentionDays})|e('js') }}')">
+            {{- 'Purge old'|t('watson') -}}
+        </button>
+    </form>
+{% endblock %}
+
+{% block content %}
+
+    {# ── Filter bar ─────────────────────────────────────────────────────────── #}
+    <form method="get" id="watson-filters">
+        <div class="toolbar">
+            <div class="flex flex-nowrap">
+                <input class="text" type="text" name="effectiveDirective"
+                       value="{{ filters.effectiveDirective }}"
+                       placeholder="{{ 'Directive'|t('watson') }}"
+                       style="width: 160px">
+                <input class="text" type="text" name="blockedUri"
+                       value="{{ filters.blockedUri }}"
+                       placeholder="{{ 'Blocked URI'|t('watson') }}"
+                       style="width: 220px">
+                <input class="text" type="text" name="documentUri"
+                       value="{{ filters.documentUri }}"
+                       placeholder="{{ 'Document URI'|t('watson') }}"
+                       style="width: 220px">
+                <input class="text" type="date" name="dateFrom"
+                       value="{{ filters.dateFrom }}"
+                       title="{{ 'From'|t('watson') }}">
+                <input class="text" type="date" name="dateTo"
+                       value="{{ filters.dateTo }}"
+                       title="{{ 'To'|t('watson') }}">
+                <div class="select">
+                    <select name="status">
+                        {% for opt in statusOptions %}
+                            <option value="{{ opt.value }}"{{ filters.status == opt.value ? ' selected' }}>{{ opt.label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit" class="btn submit">{{ 'Filter'|t('watson') }}</button>
+                <a href="{{ url('watson/violations') }}" class="btn">{{ 'Reset'|t('watson') }}</a>
+            </div>
+        </div>
+    </form>
+
+    <p class="light" style="margin: 0.5rem 0;">
+        {{ '{total} violation(s)'|t('watson', {total: total}) }}
+    </p>
+
+    {% if violations|length %}
+
+        {# ── Bulk action bar ─────────────────────────────────────────────────── #}
+        <form method="post" id="watson-bulk-form">
+            {{ csrfInput() }}
+            {{ actionInput('watson/cp/update-status') }}
+            {{ redirectInput('watson/violations?' ~ craft.app.request.queryStringWithoutPath) }}
+
+            <div class="flex" style="margin-bottom: 0.75rem; align-items: center; gap: 0.5rem;">
+                <label style="display: flex; align-items: center; gap: 0.25rem; font-weight: 500;">
+                    <input type="checkbox" id="watson-select-all"> {{ 'Select all'|t('watson') }}
+                </label>
+                <div class="select">
+                    <select name="status" id="watson-bulk-status">
+                        <option value="">{{ 'Mark as…'|t('watson') }}</option>
+                        <option value="new">{{ 'New'|t('watson') }}</option>
+                        <option value="resolved">{{ 'Resolved'|t('watson') }}</option>
+                        <option value="ignored">{{ 'Ignored'|t('watson') }}</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn" id="watson-bulk-submit">{{ 'Apply'|t('watson') }}</button>
+                <button type="button" class="btn danger hidden" id="watson-bulk-delete"
+                        data-confirm="{{ 'Delete {n} selected violation(s)? This cannot be undone.'|t('watson', {n: 'PLACEHOLDER'})|e }}">
+                    {{- 'Delete selected'|t('watson') -}}
+                </button>
+            </div>
+
+            {%- set _sortBase = filters|merge({page: null}) -%}
+            {%- macro _th(label, column, sort, dir, base) -%}
+                {%- set _active = sort == column -%}
+                {%- set _next = _active and dir == 'asc' ? 'desc' : 'asc' -%}
+                <th scope="col"
+                    class="orderable{{ _active ? ' ordered ' ~ dir }}"
+                    aria-sort="{{ _active ? (dir == 'asc' ? 'ascending' : 'descending') : 'none' }}">
+                    <button type="button" data-href="{{ url('watson/violations', base|merge({sort: column, dir: _next})) }}">
+                        {{- label -}}<div class="spinner"></div>
+                    </button>
+                </th>
+            {%- endmacro -%}
+
+            <table class="data fullwidth">
+                <thead>
+                    <tr>
+                        <th class="thin"></th>
+                        {{ _self._th('Date'|t('watson'),      'dateCreated',      sort, dir, _sortBase) }}
+                        {{ _self._th('Status'|t('watson'),    'status',           sort, dir, _sortBase) }}
+                        <th scope="col">{{ 'Kind'|t('watson') }}</th>
+                        {{ _self._th('Directive'|t('watson'), 'effectiveDirective', sort, dir, _sortBase) }}
+                        {{ _self._th('Blocked URI'|t('watson'), 'blockedUri',      sort, dir, _sortBase) }}
+                        {{ _self._th('Document URI'|t('watson'), 'documentUri',    sort, dir, _sortBase) }}
+                        <th scope="col">{{ 'IP'|t('watson') }}</th>
+                        <th scope="col">{{ 'Actions'|t('watson') }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for v in violations %}
+                        <tr>
+                            <td class="thin">
+                                <input type="checkbox" name="ids[]" value="{{ v.id }}" class="watson-row-check">
+                            </td>
+                            <td class="nowrap">
+                                {% if v.dateCreated %}
+                                    {{ v.dateCreated|datetime('short') }}
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if v.status == 'new' %}
+                                    {% set statusClass = 'red' %}
+                                    {% set statusText = 'New'|t('watson') %}
+                                {% elseif v.status == 'resolved' %}
+                                    {% set statusClass = 'teal' %}
+                                    {% set statusText = 'Resolved'|t('watson') %}
+                                {% else %}
+                                    {% set statusClass = 'gray' %}
+                                    {% set statusText = 'Ignored'|t('watson') %}
+                                {% endif %}
+                                <span class="status-label {{ statusClass }}">
+                                    <span class="status {{ statusClass }}"></span>
+                                    <span class="status-label-text">{{ statusText }}</span>
+                                </span>
+                            </td>
+                            <td><code>{{ v.kind }}</code></td>
+                            <td><code>{{ v.effectiveDirective ?? '—' }}</code></td>
+                            <td class="smalltext" style="max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                <span title="{{ v.blockedUri }}">{{ v.blockedUri ?? '—' }}</span>
+                            </td>
+                            <td class="smalltext" style="max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                <span title="{{ v.documentUri }}">{{ v.documentUri ?? '—' }}</span>
+                            </td>
+                            <td class="smalltext">{{ v.ip ?? '—' }}</td>
+                            <td class="nowrap">
+                                {# Inline quick-action forms #}
+                                {% if v.status != 'resolved' %}
+                                    <form method="post" style="display:inline">
+                                        {{ csrfInput() }}
+                                        {{ actionInput('watson/cp/update-status') }}
+                                        {{ redirectInput('watson/violations?' ~ craft.app.request.queryStringWithoutPath) }}
+                                        <input type="hidden" name="ids[]" value="{{ v.id }}">
+                                        <input type="hidden" name="status" value="resolved">
+                                        <button type="submit" class="btn small">{{ 'Resolve'|t('watson') }}</button>
+                                    </form>
+                                {% endif %}
+                                {% if v.status != 'ignored' %}
+                                    <form method="post" style="display:inline">
+                                        {{ csrfInput() }}
+                                        {{ actionInput('watson/cp/update-status') }}
+                                        {{ redirectInput('watson/violations?' ~ craft.app.request.queryStringWithoutPath) }}
+                                        <input type="hidden" name="ids[]" value="{{ v.id }}">
+                                        <input type="hidden" name="status" value="ignored">
+                                        <button type="submit" class="btn small">{{ 'Ignore'|t('watson') }}</button>
+                                    </form>
+                                {% endif %}
+                                {% if v.status != 'new' %}
+                                    <form method="post" style="display:inline">
+                                        {{ csrfInput() }}
+                                        {{ actionInput('watson/cp/update-status') }}
+                                        {{ redirectInput('watson/violations?' ~ craft.app.request.queryStringWithoutPath) }}
+                                        <input type="hidden" name="ids[]" value="{{ v.id }}">
+                                        <input type="hidden" name="status" value="new">
+                                        <button type="submit" class="btn small">{{ 'Reset'|t('watson') }}</button>
+                                    </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+        </form>{# /bulk form #}
+
+        {# ── Pagination ──────────────────────────────────────────────────────── #}
+        {% if totalPages > 1 %}
+            {% set paginationParams = filters|merge({page: null}) %}
+            <div class="flex flex-justify" style="margin-top: 1rem;">
+                {% if page > 1 %}
+                    <a href="{{ url('watson/violations', filters|merge({page: page - 1})) }}" class="btn">
+                        &laquo; {{ 'Previous'|t('app') }}
+                    </a>
+                {% else %}
+                    <span></span>
+                {% endif %}
+                <span class="light">
+                    {{ 'Page {page} of {total}'|t('watson', {page: page, total: totalPages}) }}
+                </span>
+                {% if page < totalPages %}
+                    <a href="{{ url('watson/violations', filters|merge({page: page + 1})) }}" class="btn">
+                        {{ 'Next'|t('app') }} &raquo;
+                    </a>
+                {% endif %}
+            </div>
+        {% endif %}
+
+    {% else %}
+        <p>{{ 'No violations found.'|t('watson') }}</p>
+    {% endif %}
+
+{% endblock %}
+
+{% js %}
+(function () {
+    const selectAll   = document.getElementById('watson-select-all');
+    const deleteBtn   = document.getElementById('watson-bulk-delete');
+    const bulkForm    = document.getElementById('watson-bulk-form');
+    const checkboxes  = () => document.querySelectorAll('.watson-row-check');
+
+    function syncDeleteBtn() {
+        const n = document.querySelectorAll('.watson-row-check:checked').length;
+        if (deleteBtn) {
+            deleteBtn.classList.toggle('hidden', n === 0);
+        }
+    }
+
+    if (selectAll) {
+        selectAll.addEventListener('change', function () {
+            checkboxes().forEach(function (cb) { cb.checked = selectAll.checked; });
+            syncDeleteBtn();
+        });
+    }
+
+    document.querySelectorAll('.watson-row-check').forEach(function (cb) {
+        cb.addEventListener('change', syncDeleteBtn);
+    });
+
+    document.querySelectorAll('th.orderable button[data-href]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            window.location.href = btn.getAttribute('data-href');
+        });
+    });
+
+    if (deleteBtn && bulkForm) {
+        deleteBtn.addEventListener('click', function () {
+            const n   = document.querySelectorAll('.watson-row-check:checked').length;
+            const msg = deleteBtn.getAttribute('data-confirm').replace('PLACEHOLDER', n);
+            if (!confirm(msg)) { return; }
+            const input = document.createElement('input');
+            input.type  = 'hidden';
+            input.name  = 'status';
+            input.value = 'delete';
+            bulkForm.querySelector('[name="status"]').disabled = true;
+            bulkForm.appendChild(input);
+            bulkForm.submit();
+        });
+    }
+})();
+{% endjs %}

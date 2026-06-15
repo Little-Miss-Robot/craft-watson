@@ -3,17 +3,25 @@
 {% import '_includes/forms' as forms %}
 
 {% set title = 'Settings'|t('watson') %}
-{% set fullPageForm = true %}
+{% set fullPageForm = not readOnly %}
 {% set selectedSubnavItem = 'settings' %}
 
+{% if readOnly %}
+    {% set contentNotice = readOnlyNotice() %}
+{% endif %}
+
 {% block actionButton %}
-    <button type="submit" class="btn submit">{{ 'Save'|t('app') }}</button>
+    {% if not readOnly %}
+        <button type="submit" class="btn submit">{{ 'Save'|t('app') }}</button>
+    {% endif %}
 {% endblock %}
 
 {% block content %}
 
-    <input type="hidden" name="action" value="watson/cp/settings">
-    {{ redirectInput('watson/settings') }}
+    {% if not readOnly %}
+        <input type="hidden" name="action" value="watson/cp/settings">
+        {{ redirectInput('watson/settings') }}
+    {% endif %}
 
     {% namespace 'settings' %}
 
@@ -26,6 +34,7 @@
             min:          1,
             instructions: 'Number of days to keep violations. Used by the "Purge old" button and the purge console command.'|t('watson'),
             errors:       settings.getErrors('retentionDays'),
+            disabled:     readOnly,
         }) }}
 
         {{ forms.editableTableField({
@@ -43,10 +52,11 @@
             },
             rows:         settings.ignoredDirectives,
             addRowLabel:  'Add a directive'|t('watson'),
-            allowAdd:     true,
-            allowDelete:  true,
-            allowReorder: true,
+            allowAdd:     not readOnly,
+            allowDelete:  not readOnly,
+            allowReorder: not readOnly,
             errors:       settings.getErrors('ignoredDirectives'),
+            static:       readOnly,
         }) }}
 
     {% endnamespace %}

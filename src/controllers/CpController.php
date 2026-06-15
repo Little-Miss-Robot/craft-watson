@@ -3,6 +3,7 @@
 namespace littlemissrobot\watson\controllers;
 
 use Craft;
+use craft\helpers\Cp;
 use craft\web\Controller;
 use littlemissrobot\watson\Watson;
 use yii\web\Response;
@@ -110,9 +111,10 @@ class CpController extends Controller
 
     public function actionSettings(): Response
     {
+        $readOnly = !Craft::$app->getConfig()->getGeneral()->allowAdminChanges;
         $settings = Watson::getInstance()->getSettings();
 
-        if (Craft::$app->getRequest()->getIsPost()) {
+        if (!$readOnly && Craft::$app->getRequest()->getIsPost()) {
             $settings->setAttributes(
                 Craft::$app->getRequest()->getBodyParam('settings', []),
                 false
@@ -129,6 +131,7 @@ class CpController extends Controller
 
         return $this->renderTemplate('watson/settings', [
             'settings' => $settings,
+            'readOnly' => $readOnly,
         ]);
     }
 

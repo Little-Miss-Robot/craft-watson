@@ -1,5 +1,5 @@
 # Release Notes for Watson
 
-## v1.0.0 - 2026-XX-XX
+## v1.0.0 - 2026-06-15
 
 - Initial release

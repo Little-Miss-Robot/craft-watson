@@ -1,6 +1,11 @@
+<img width="134" height="134" alt="Icon" src="https://github.com/user-attachments/assets/7899dafb-1f93-4039-a8ff-4ac1a09bb322" />
+
 # Watson
 
 Watson collects and displays Content Security Policy (CSP) violation reports in the Craft CMS control panel. Point your CSP `report-uri` at Watson's endpoint, and violations are stored, grouped, and surfaced in a dashboard so you can tighten your policy without flying blind.
+
+<img width="1554" height="595" alt="Screenshot 2026-06-15 at 19 03 04" src="https://github.com/user-attachments/assets/388a21cc-cd03-49fa-a4fd-5905412ac3e2" />
+
 
 ## Requirements
 

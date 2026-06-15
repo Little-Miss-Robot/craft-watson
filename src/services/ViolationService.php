@@ -2,20 +2,51 @@
 
 namespace littlemissrobot\watson\services;
 
+use Carbon\Carbon;
 use Craft;
+use craft\helpers\Db;
 use littlemissrobot\watson\models\ViolationModel;
 use littlemissrobot\watson\records\ViolationRecord;
 use littlemissrobot\watson\Watson;
 use yii\base\Component;
 
+/**
+ * Violation service.
+ *
+ * Handles storing, querying, and managing CSP violation records.
+ *
+ * @author Little Miss Robot <hello@littlemissrobot.be>
+ * @since 1.0.0
+ */
 class ViolationService extends Component
 {
+    // =========================================================================
+    // Const Properties
+    // =========================================================================
+
+    /**
+     * @var string[]
+     */
     private const VALID_STATUSES = ['new', 'resolved', 'ignored'];
 
-    // -------------------------------------------------------------------------
-    // Persist
-    // -------------------------------------------------------------------------
+    // =========================================================================
+    // Public Methods
+    // =========================================================================
 
+    /**
+     * Decodes and persists one or more CSP reports from a raw request body.
+     *
+     * Supports both the legacy `application/csp-report` format and the modern
+     * Reporting API `application/reports+json` format. If the body cannot be
+     * parsed, an unparsed record is stored so no report is silently lost.
+     *
+     * @param string      $rawBody
+     * @param string      $contentType
+     * @param string|null $userAgent
+     * @param string|null $ip
+     * @param string|null $referrer
+     * @return array{received: int, written: int}
+     */
     public function persistReports(
         string $rawBody,
         string $contentType,
@@ -23,14 +54,13 @@ class ViolationService extends Component
         ?string $ip,
         ?string $referrer,
     ): array {
-        $decoded = $this->decodeBody($rawBody);
-        $reports = $this->normalizeReports($decoded, $contentType);
+        $decoded = $this->_decodeBody($rawBody);
+        $reports = $this->_normalizeReports($decoded, $contentType);
 
-        $ignoredDirectives = $this->getIgnoredDirectives();
+        $ignoredDirectives = $this->_getIgnoredDirectives();
 
         $written = 0;
         foreach ($reports as $report) {
-            // Skip if the effective directive is in the ignore list
             $directive = $report['effectiveDirective'] ?? $report['violatedDirective'] ?? null;
             if ($directive && in_array($directive, $ignoredDirectives, true)) {
                 continue;
@@ -42,7 +72,7 @@ class ViolationService extends Component
             $record->effectiveDirective = $report['effectiveDirective'] ?? $report['violatedDirective'] ?? null;
             $record->blockedUri = $report['blockedUri'] ?? null;
             $record->documentUri = $report['documentUri'] ?? null;
-            $record->rawPayload = json_encode($report, JSON_UNESCAPED_SLASHES);
+            $record->rawPayload = json_encode($report, JSON_UNESCAPED_SLASHES) ?: '{}';
             $record->userAgent = $report['userAgent'] ?? $userAgent;
             $record->referrer = $report['referrer'] ?? $referrer;
             $record->ip = $ip;
@@ -58,14 +88,14 @@ class ViolationService extends Component
             }
         }
 
-        // If nothing was parseable, store an unparsed record
+        // If nothing was parseable, store an unparsed record so no report is silently dropped
         if (count($reports) === 0) {
             $record = new ViolationRecord();
             $record->kind = 'unparsed';
             $record->rawPayload = json_encode([
                 'rawBody' => $rawBody,
                 'contentType' => $contentType,
-            ], JSON_UNESCAPED_SLASHES);
+            ], JSON_UNESCAPED_SLASHES) ?: '{}';
             $record->userAgent = $userAgent;
             $record->referrer = $referrer;
             $record->ip = $ip;
@@ -82,10 +112,16 @@ class ViolationService extends Component
         ];
     }
 
-    // -------------------------------------------------------------------------
-    // Query
-    // -------------------------------------------------------------------------
-
+    /**
+     * Returns a paginated list of violations, optionally filtered and sorted.
+     *
+     * @param array<string, string> $filters
+     * @param int    $page
+     * @param int    $perPage
+     * @param string $sort
+     * @param string $dir
+     * @return array{violations: ViolationModel[], total: int, totalPages: int}
+     */
     public function getViolations(array $filters = [], int $page = 1, int $perPage = 50, string $sort = 'dateCreated', string $dir = 'desc'): array
     {
         $allowedSorts = ['dateCreated', 'status', 'effectiveDirective', 'blockedUri', 'documentUri'];
@@ -122,6 +158,7 @@ class ViolationService extends Component
         $total = (int) $query->count();
         $totalPages = (int) ceil($total / $perPage);
 
+        /** @var array<int, array<string, mixed>> $records */
         $records = $query
             ->offset(($page - 1) * $perPage)
             ->limit($perPage)
@@ -140,6 +177,14 @@ class ViolationService extends Component
         ];
     }
 
+    /**
+     * Returns a grouped summary of non-ignored violations, sorted and limited.
+     *
+     * @param int    $limit
+     * @param string $sort
+     * @param string $dir
+     * @return array<int, array<string, mixed>>
+     */
     public function summarize(int $limit = 20, string $sort = 'count', string $dir = 'desc'): array
     {
         $allowedSorts = ['count', 'effectiveDirective', 'blockedUri', 'documentUri'];
@@ -147,8 +192,9 @@ class ViolationService extends Component
             $sort = 'count';
         }
 
-        return ViolationRecord::find()
-            ->select([
+        /** @var array<int, array<string, mixed>> $result */
+        $result = ViolationRecord::find()
+            ->addSelect([
                 'effectiveDirective',
                 'blockedUri',
                 'documentUri',
@@ -160,12 +206,17 @@ class ViolationService extends Component
             ->limit($limit)
             ->asArray()
             ->all();
+
+        return $result;
     }
 
-    // -------------------------------------------------------------------------
-    // Status
-    // -------------------------------------------------------------------------
-
+    /**
+     * Updates the status of one or more violations by ID.
+     *
+     * @param int|int[] $ids
+     * @param string    $status
+     * @return int Number of rows updated.
+     */
     public function updateStatus(int|array $ids, string $status): int
     {
         if (!in_array($status, self::VALID_STATUSES, true)) {
@@ -184,10 +235,12 @@ class ViolationService extends Component
         );
     }
 
-    // -------------------------------------------------------------------------
-    // Purge
-    // -------------------------------------------------------------------------
-
+    /**
+     * Permanently deletes violations by ID.
+     *
+     * @param int[] $ids
+     * @return int Number of rows deleted.
+     */
     public function deleteByIds(array $ids): int
     {
         if (empty($ids)) {
@@ -197,51 +250,74 @@ class ViolationService extends Component
         return (int) ViolationRecord::deleteAll(['id' => $ids]);
     }
 
+    /**
+     * Purges violations older than the given number of days.
+     *
+     * Defaults to the plugin's configured `retentionDays` setting.
+     *
+     * @param int|null $days
+     * @return int Number of rows deleted.
+     */
     public function purge(?int $days = null): int
     {
         if ($days === null) {
-            $days = Watson::getInstance()->getSettings()->retentionDays;
+            $days = Watson::$plugin->getSettings()->retentionDays;
         }
 
-        $cutoff = (new \DateTime())
-            ->modify("-{$days} days")
-            ->format('Y-m-d H:i:s');
+        $cutoff = Carbon::now()->subDays($days);
 
-        return (int) ViolationRecord::deleteAll(['<', 'dateCreated', $cutoff]);
+        return (int) ViolationRecord::deleteAll(['<', 'dateCreated', Db::prepareDateForDb($cutoff)]);
     }
 
-    // -------------------------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------------------------
+    // =========================================================================
+    // Private Methods
+    // =========================================================================
 
-    private function getIgnoredDirectives(): array
+    /**
+     * Returns the list of effective directives that should be silently ignored.
+     *
+     * @return string[]
+     */
+    private function _getIgnoredDirectives(): array
     {
-        $raw = Watson::getInstance()->getSettings()->ignoredDirectives;
+        $raw = Watson::$plugin->getSettings()->ignoredDirectives;
 
         // The editable table stores rows as ['col1' => 'value'] arrays
         if (!empty($raw) && is_array($raw[0] ?? null)) {
             return array_filter(array_column($raw, 'col1'));
         }
 
-        // Simple string array fallback
         return array_filter((array) $raw);
     }
 
-    private function decodeBody(string $rawBody): mixed
+    /**
+     * Decodes a JSON request body, returning null on failure.
+     *
+     * @param string $rawBody
+     * @return mixed
+     */
+    private function _decodeBody(string $rawBody): mixed
     {
         if ($rawBody === '') {
             return null;
         }
 
         $decoded = json_decode($rawBody, true);
+
         return json_last_error() === JSON_ERROR_NONE ? $decoded : null;
     }
 
     /**
-     * Normalises legacy report-uri and modern Reporting API formats into a
-     * flat array of report arrays. Ported directly from CspReportService.
+     * Normalises a decoded report payload into a flat array of report arrays.
+     *
+     * Handles both the legacy `report-uri` format (`{"csp-report": {...}}`) and
+     * the modern Reporting API format (`[{type: "csp-report", body: {...}}, ...]`).
+     *
+     * @param mixed  $decoded
+     * @param string $contentType
+     * @return array<int, array<string, mixed>>
      */
-    private function normalizeReports(mixed $decoded, string $contentType): array
+    private function _normalizeReports(mixed $decoded, string $contentType): array
     {
         if (!is_array($decoded)) {
             return [];
@@ -296,7 +372,7 @@ class ViolationService extends Component
             return $reports;
         }
 
-        // Unknown JSON object
+        // Unknown JSON object — store as generic record
         return [[
             'kind' => 'json',
             'body' => $decoded,

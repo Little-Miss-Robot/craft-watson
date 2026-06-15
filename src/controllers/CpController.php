@@ -8,8 +8,23 @@ use craft\web\Controller;
 use littlemissrobot\watson\Watson;
 use yii\web\Response;
 
+/**
+ * CP controller.
+ *
+ * Handles all control panel requests for the Watson plugin.
+ *
+ * @author Little Miss Robot <hello@littlemissrobot.be>
+ * @since 1.0.0
+ */
 class CpController extends Controller
 {
+    // =========================================================================
+    // Public Methods
+    // =========================================================================
+
+    /**
+     * @inheritdoc
+     */
     public function beforeAction($action): bool
     {
         if (!parent::beforeAction($action)) {
@@ -21,6 +36,11 @@ class CpController extends Controller
         return true;
     }
 
+    /**
+     * Renders the violations index.
+     *
+     * @return Response
+     */
     public function actionIndex(): Response
     {
         $request = Craft::$app->getRequest();
@@ -46,7 +66,7 @@ class CpController extends Controller
         $sort = in_array($sort, $allowedSorts, true) ? $sort : 'dateCreated';
         $dir = $request->getParam('dir', 'desc') === 'asc' ? 'asc' : 'desc';
 
-        $result = Watson::getInstance()->violations->getViolations($filters, $page, 50, $sort, $dir);
+        $result = Watson::$plugin->getViolations()->getViolations($filters, $page, 50, $sort, $dir);
 
         return $this->renderTemplate('watson/violations/index', array_merge($result, [
             'filters' => array_merge(
@@ -56,10 +76,15 @@ class CpController extends Controller
             'page' => $page,
             'sort' => $sort,
             'dir' => $dir,
-            'settings' => Watson::getInstance()->getSettings(),
+            'settings' => Watson::$plugin->getSettings(),
         ]));
     }
 
+    /**
+     * Renders the violations summary.
+     *
+     * @return Response
+     */
     public function actionSummary(): Response
     {
         $request = Craft::$app->getRequest();
@@ -70,17 +95,22 @@ class CpController extends Controller
         $sort = in_array($sort, $allowedSorts, true) ? $sort : 'count';
         $dir = $request->getParam('dir', 'desc') === 'asc' ? 'asc' : 'desc';
 
-        $summary = Watson::getInstance()->violations->summarize($limit, $sort, $dir);
+        $summary = Watson::$plugin->getViolations()->summarize($limit, $sort, $dir);
 
         return $this->renderTemplate('watson/violations/summary', [
             'summary' => $summary,
             'limit' => $limit,
             'sort' => $sort,
             'dir' => $dir,
-            'settings' => Watson::getInstance()->getSettings(),
+            'settings' => Watson::$plugin->getSettings(),
         ]);
     }
 
+    /**
+     * Updates the status of one or more violations, or deletes them.
+     *
+     * @return Response
+     */
     public function actionUpdateStatus(): Response
     {
         $this->requirePostRequest();
@@ -89,14 +119,16 @@ class CpController extends Controller
         $ids = array_filter(array_map('intval', (array) $request->getBodyParam('ids', [])));
         $status = (string) $request->getBodyParam('status', '');
 
-        if (!empty($ids) && $status !== '') {
+        $allowedStatuses = ['new', 'resolved', 'ignored', 'delete'];
+
+        if (!empty($ids) && in_array($status, $allowedStatuses, true)) {
             if ($status === 'delete') {
-                $count = Watson::getInstance()->violations->deleteByIds($ids);
+                $count = Watson::$plugin->getViolations()->deleteByIds($ids);
                 Craft::$app->getSession()->setNotice(
                     Craft::t('watson', '{n, plural, =1{1 violation} other{# violations}} deleted.', ['n' => $count])
                 );
             } else {
-                $count = Watson::getInstance()->violations->updateStatus($ids, $status);
+                $count = Watson::$plugin->getViolations()->updateStatus($ids, $status);
                 Craft::$app->getSession()->setNotice(
                     Craft::t('watson', '{n, plural, =1{1 violation} other{# violations}} marked as {status}.', [
                         'n' => $count,
@@ -109,18 +141,25 @@ class CpController extends Controller
         return $this->redirectToPostedUrl(null, 'watson/violations');
     }
 
+    /**
+     * Renders the settings page, and saves settings on POST.
+     *
+     * @return Response
+     */
     public function actionSettings(): Response
     {
         $readOnly = !Craft::$app->getConfig()->getGeneral()->allowAdminChanges;
-        $settings = Watson::getInstance()->getSettings();
+        $settings = Watson::$plugin->getSettings();
 
         if (!$readOnly && Craft::$app->getRequest()->getIsPost()) {
+            $this->requirePostRequest();
+            $this->requireAdmin();
+
             $settings->setAttributes(
-                Craft::$app->getRequest()->getBodyParam('settings', []),
-                false
+                Craft::$app->getRequest()->getBodyParam('settings', [])
             );
 
-            if (Craft::$app->getPlugins()->savePluginSettings(Watson::getInstance(), $settings->getAttributes())) {
+            if (Craft::$app->getPlugins()->savePluginSettings(Watson::$plugin, $settings->getAttributes())) {
                 Craft::$app->getSession()->setNotice(Craft::t('app', 'Settings saved.'));
             } else {
                 Craft::$app->getSession()->setError(Craft::t('app', 'Couldn\'t save settings.'));
@@ -135,12 +174,17 @@ class CpController extends Controller
         ]);
     }
 
+    /**
+     * Purges violations older than a given number of days.
+     *
+     * @return Response
+     */
     public function actionPurge(): Response
     {
         $this->requirePostRequest();
 
         $days = Craft::$app->getRequest()->getBodyParam('days');
-        $deleted = Watson::getInstance()->violations->purge($days !== null ? (int) $days : null);
+        $deleted = Watson::$plugin->getViolations()->purge($days !== null ? (int) $days : null);
 
         Craft::$app->getSession()->setNotice(
             Craft::t('watson', '{n, plural, =1{1 violation} other{# violations}} purged.', ['n' => $deleted])

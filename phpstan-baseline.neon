@@ -1,0 +1,66 @@
+parameters:
+	ignoreErrors:
+		-
+			message: "#^Call to an undefined method craft\\\\web\\\\Response\\|yii\\\\console\\\\Response\\:\\:redirect\\(\\)\\.$#"
+			count: 1
+			path: src/Watson.php
+
+		-
+			message: "#^Method littlemissrobot\\\\watson\\\\Watson\\:\\:config\\(\\) return type has no value type specified in iterable type array\\.$#"
+			count: 1
+			path: src/Watson.php
+
+		-
+			message: "#^Method littlemissrobot\\\\watson\\\\Watson\\:\\:getCpNavItem\\(\\) return type has no value type specified in iterable type array\\.$#"
+			count: 1
+			path: src/Watson.php
+
+		-
+			message: "#^Call to an undefined method craft\\\\console\\\\Request\\|craft\\\\web\\\\Request\\:\\:getBodyParam\\(\\)\\.$#"
+			count: 4
+			path: src/controllers/CpController.php
+
+		-
+			message: "#^Call to an undefined method craft\\\\console\\\\Request\\|craft\\\\web\\\\Request\\:\\:getIsPost\\(\\)\\.$#"
+			count: 1
+			path: src/controllers/CpController.php
+
+		-
+			message: "#^Call to an undefined method craft\\\\console\\\\Request\\|craft\\\\web\\\\Request\\:\\:getParam\\(\\)\\.$#"
+			count: 13
+			path: src/controllers/CpController.php
+
+		-
+			message: "#^Call to an undefined method craft\\\\console\\\\Request\\|craft\\\\web\\\\Request\\:\\:getQueryParams\\(\\)\\.$#"
+			count: 1
+			path: src/controllers/CpController.php
+
+		-
+			message: "#^Call to an undefined method craft\\\\console\\\\Request\\|craft\\\\web\\\\Request\\:\\:getHeaders\\(\\)\\.$#"
+			count: 1
+			path: src/controllers/WebController.php
+
+		-
+			message: "#^Call to an undefined method craft\\\\console\\\\Request\\|craft\\\\web\\\\Request\\:\\:getRawBody\\(\\)\\.$#"
+			count: 1
+			path: src/controllers/WebController.php
+
+		-
+			message: "#^Call to an undefined method craft\\\\console\\\\Request\\|craft\\\\web\\\\Request\\:\\:getReferrer\\(\\)\\.$#"
+			count: 1
+			path: src/controllers/WebController.php
+
+		-
+			message: "#^Call to an undefined method craft\\\\console\\\\Request\\|craft\\\\web\\\\Request\\:\\:getUserAgent\\(\\)\\.$#"
+			count: 1
+			path: src/controllers/WebController.php
+
+		-
+			message: "#^Call to an undefined method craft\\\\console\\\\Request\\|craft\\\\web\\\\Request\\:\\:getUserIP\\(\\)\\.$#"
+			count: 1
+			path: src/controllers/WebController.php
+
+		-
+			message: "#^Call to an undefined method craft\\\\web\\\\Response\\|yii\\\\console\\\\Response\\:\\:setStatusCode\\(\\)\\.$#"
+			count: 1
+			path: src/controllers/WebController.php

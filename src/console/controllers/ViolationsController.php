@@ -6,11 +6,39 @@ use craft\console\Controller;
 use littlemissrobot\watson\Watson;
 use yii\console\ExitCode;
 
+/**
+ * Manages CSP violation records from the command line.
+ *
+ * @author Little Miss Robot <hello@littlemissrobot.be>
+ * @since 1.0.0
+ */
 class ViolationsController extends Controller
 {
+    // =========================================================================
+    // Public Properties
+    // =========================================================================
+
+    /**
+     * Maximum number of groups to display in the summary.
+     *
+     * @var int
+     */
     public int $limit = 20;
+
+    /**
+     * Number of days used as the retention threshold for the purge action.
+     *
+     * @var int
+     */
     public int $days = 90;
 
+    // =========================================================================
+    // Public Methods
+    // =========================================================================
+
+    /**
+     * @inheritdoc
+     */
     public function options($actionID): array
     {
         return match ($actionID) {
@@ -20,9 +48,14 @@ class ViolationsController extends Controller
         };
     }
 
+    /**
+     * Prints a summary of the top violation groups.
+     *
+     * @return int
+     */
     public function actionSummary(): int
     {
-        $summary = Watson::getInstance()->violations->summarize($this->limit);
+        $summary = Watson::$plugin->getViolations()->summarize($this->limit);
 
         $total = array_sum(array_column($summary, 'count'));
 
@@ -42,9 +75,14 @@ class ViolationsController extends Controller
         return ExitCode::OK;
     }
 
+    /**
+     * Purges violations older than `--days` (default: 90).
+     *
+     * @return int
+     */
     public function actionPurge(): int
     {
-        $deleted = Watson::getInstance()->violations->purge($this->days);
+        $deleted = Watson::$plugin->getViolations()->purge($this->days);
 
         $this->stdout("Purged {$deleted} violation(s) older than {$this->days} days.\n");
 

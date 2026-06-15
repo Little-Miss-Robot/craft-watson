@@ -7,8 +7,24 @@ use craft\db\Migration;
 use craft\helpers\StringHelper;
 use littlemissrobot\watson\records\ViolationRecord;
 
+/**
+ * Install migration.
+ *
+ * Creates the `watson_violations` table and optionally imports a legacy JSONL
+ * violation log if one exists at `storage/logs/csp-violations.jsonl`.
+ *
+ * @author Little Miss Robot <hello@littlemissrobot.be>
+ * @since 1.0.0
+ */
 class Install extends Migration
 {
+    // =========================================================================
+    // Public Methods
+    // =========================================================================
+
+    /**
+     * @inheritdoc
+     */
     public function safeUp(): bool
     {
         $this->_createTable();
@@ -17,6 +33,9 @@ class Install extends Migration
         return true;
     }
 
+    /**
+     * @inheritdoc
+     */
     public function safeDown(): bool
     {
         $this->dropTableIfExists(ViolationRecord::tableName());
@@ -24,6 +43,15 @@ class Install extends Migration
         return true;
     }
 
+    // =========================================================================
+    // Private Methods
+    // =========================================================================
+
+    /**
+     * Creates the violations table and its indexes.
+     *
+     * @return void
+     */
     private function _createTable(): void
     {
         $table = ViolationRecord::tableName();
@@ -54,6 +82,15 @@ class Install extends Migration
         $this->createIndex(null, $table, ['dateCreated']);
     }
 
+    /**
+     * Imports a legacy JSONL violation log if present.
+     *
+     * This is a best-effort migration that runs silently when no file is found.
+     * Malformed lines are skipped individually so a single bad entry does not
+     * abort the import.
+     *
+     * @return void
+     */
     private function _importJsonl(): void
     {
         $path = Craft::$app->getPath()->getStoragePath()

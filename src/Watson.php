@@ -12,19 +12,50 @@ use littlemissrobot\watson\services\ViolationService;
 use yii\base\Event;
 
 /**
- * Watson plugin
+ * Watson plugin.
  *
- * @property ViolationService $violations
  * @method Settings getSettings()
+ *
+ * @author Little Miss Robot <hello@littlemissrobot.be>
+ * @since 1.0.0
  */
 class Watson extends Plugin
 {
+    // =========================================================================
+    // Static Properties
+    // =========================================================================
+
+    /**
+     * @var static
+     */
     public static self $plugin;
 
+    // =========================================================================
+    // Public Properties
+    // =========================================================================
+
+    /**
+     * @var string
+     */
     public string $schemaVersion = '1.0.0';
+
+    /**
+     * @var bool
+     */
     public bool $hasCpSection = true;
+
+    /**
+     * @var bool
+     */
     public bool $hasCpSettings = true;
 
+    // =========================================================================
+    // Public Methods
+    // =========================================================================
+
+    /**
+     * @inheritdoc
+     */
     public static function config(): array
     {
         return [
@@ -34,6 +65,9 @@ class Watson extends Plugin
         ];
     }
 
+    /**
+     * @inheritdoc
+     */
     public function init(): void
     {
         parent::init();
@@ -44,13 +78,29 @@ class Watson extends Plugin
 
         if (!$request->getIsConsoleRequest()) {
             if ($request->getIsCpRequest()) {
-                $this->registerCpUrlRules();
+                $this->_registerCpUrlRules();
             } else {
-                $this->registerSiteUrlRules();
+                $this->_registerSiteUrlRules();
             }
         }
     }
 
+    /**
+     * Returns the violations service.
+     *
+     * @return ViolationService
+     */
+    public function getViolations(): ViolationService
+    {
+        $component = $this->get('violations');
+        assert($component instanceof ViolationService);
+
+        return $component;
+    }
+
+    /**
+     * @inheritdoc
+     */
     public function getCpNavItem(): ?array
     {
         $navItem = parent::getCpNavItem();
@@ -66,6 +116,8 @@ class Watson extends Plugin
                     'label' => Craft::t('watson', 'Summary'),
                     'url' => 'watson/violations/summary',
                 ],
+                // Settings link is intentionally shown in production-locked environments;
+                // the settings template handles read-only rendering via allowAdminChanges.
                 'settings' => [
                     'label' => Craft::t('watson', 'Settings'),
                     'url' => 'watson/settings',
@@ -74,17 +126,36 @@ class Watson extends Plugin
         ]);
     }
 
+    /**
+     * @inheritdoc
+     */
     public function getSettingsResponse(): mixed
     {
         return Craft::$app->getResponse()->redirect(UrlHelper::cpUrl('watson/settings'));
     }
 
+    // =========================================================================
+    // Protected Methods
+    // =========================================================================
+
+    /**
+     * @inheritdoc
+     */
     protected function createSettingsModel(): Settings
     {
         return new Settings();
     }
 
-    private function registerCpUrlRules(): void
+    // =========================================================================
+    // Private Methods
+    // =========================================================================
+
+    /**
+     * Registers CP URL rules.
+     *
+     * @return void
+     */
+    private function _registerCpUrlRules(): void
     {
         Event::on(
             UrlManager::class,
@@ -98,7 +169,12 @@ class Watson extends Plugin
         );
     }
 
-    private function registerSiteUrlRules(): void
+    /**
+     * Registers site URL rules for the CSP reporting endpoint.
+     *
+     * @return void
+     */
+    private function _registerSiteUrlRules(): void
     {
         Event::on(
             UrlManager::class,

@@ -16,7 +16,7 @@ Go to the Plugin Store in your project's control panel, search for **Watson**, a
 ### With Composer
 
 ```bash
-composer require littlemissrobot/craft-watson
+composer require little-miss-robot/craft-watson
 ./craft plugin/install watson
 ```
 
@@ -41,6 +41,18 @@ If you manage your CSP through [Sherlock](https://putyourlightson.com/plugins/sh
         [true, 'report-uri', '/csp-report'],
     ],
 ],
+```
+
+#### Multi-language sites with `.htaccess` language forcing
+
+If your site uses Apache rewrite rules to enforce a language prefix on all URLs (e.g. redirecting `/foo` → `/en/foo`), you need to exclude `/csp-report` from that rule. Without this, browsers will receive a 301 redirect and the report will be dropped.
+
+Add a `RewriteCond` exception before the redirect rule:
+
+```apache
+# Force language prefix — exclude CSP reporting endpoint
+RewriteCond %{REQUEST_URI} !^/csp-report
+RewriteRule ^(.*)$ /en/$1 [L,R=301]
 ```
 
 ### 2. Plugin settings

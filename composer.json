@@ -1,12 +1,31 @@
 {
-  "name": "littlemissrobot/craft-watson",
+  "name": "little-miss-robot/craft-watson",
   "description": "CSP violation reporting and dashboard for Craft CMS 5.",
-  "version": "1.0.0",
   "type": "craft-plugin",
+  "version": "1.0.0",
+  "homepage": "https://littlemissrobot.com",
   "license": "MIT",
+  "keywords": [
+    "cp",
+    "control panel",
+    "csp",
+    "content security policy",
+    "csp violation"
+  ],
+  "support": {
+    "email": "craft@littlemissrobot.com",
+    "issues": "https://github.com/little-miss-robot/craft-watson/issues?state=open",
+    "source": "https://github.com/little-miss-robot/craft-watson",
+    "docs": "https://github.com/little-miss-robot/craft-watson",
+    "rss": "https://github.com/little-miss-robot/craft-watson/releases.atom"
+  },
   "require": {
     "php": "^8.2",
     "craftcms/cms": "^5.0"
+  },
+  "require-dev": {
+    "craftcms/ecs": "dev-main",
+    "craftcms/phpstan": "dev-main"
   },
   "autoload": {
     "psr-4": {
@@ -14,12 +33,16 @@
     }
   },
   "extra": {
-    "name": "Watson",
-    "handle": "watson",
-    "developer": "Little Miss Robot",
-    "developerUrl": "https://littlemissrobot.be",
     "class": "littlemissrobot\\watson\\Watson",
-    "schemaVersion": "1.0.0"
+    "handle": "watson",
+    "name": "Watson",
+    "developer": "Little Miss Robot",
+    "documentationUrl": "https://github.com/little-miss-robot/craft-watson"
+  },
+  "scripts": {
+    "check-cs": "ecs check --ansi",
+    "fix-cs": "ecs check --ansi --fix",
+    "phpstan": "phpstan --memory-limit=1G"
   },
   "config": {
     "allow-plugins": {
@@ -27,15 +50,8 @@
       "craftcms/plugin-installer": true
     }
   },
-  "scripts": {
-    "check-cs": "ecs check --ansi",
-    "fix-cs": "ecs check --ansi --fix",
-    "phpstan": "phpstan --memory-limit=1G"
-  },
+  "optimize-autoloader": true,
+  "sort-packages": true,
   "minimum-stability": "dev",
-  "prefer-stable": true,
-  "require-dev": {
-    "craftcms/ecs": "dev-main",
-    "craftcms/phpstan": "dev-main"
-  }
+  "prefer-stable": true
 }
